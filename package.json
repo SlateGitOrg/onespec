@@ -1,0 +1,12 @@
+{
+  "name": "onespec",
+  "version": "0.1.0",
+  "description": "One JSON Schema generating client, server and database validation - with property-based tests proving all three agree.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22.6" },
+  "scripts": {
+    "test": "node --test",
+    "demo": "node src/demo.ts"
+  }
+}
