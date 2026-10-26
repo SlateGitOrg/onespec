@@ -48,11 +48,10 @@ for (const { label, row } of CASES) {
   const y = (b: boolean) => (b ? 'accept' : 'reject').padEnd(9);
   console.log(`  ${label.padEnd(31)} ${y(c)}${y(s)}${y(q)}${all ? 'yes' : 'NO'}`);
 }
-console.log(`\n  ${agreed}/${CASES.length} agree. The last two are the interesting ones:`);
-console.log('  a number in a text field, and 1 where a boolean was expected.');
-console.log('  Both are rows a naive SQL target silently accepts - SQLite coerces');
-console.log("  42 to '42', and cannot tell true from 1 - so the API rejects them");
-console.log('  and a bulk import does not.\n');
+console.log(`\n  ${agreed}/${CASES.length} agree.`);
+console.log('  The last two rows (a number in a text field, 1 where a boolean is');
+console.log("  expected) are accepted by SQLite's default type coercion, so they are");
+console.log('  rejected explicitly in the generated SQL target.\n');
 
 console.log('  Generated DDL (excerpt):');
 const ddl = generateDdl(KYC);

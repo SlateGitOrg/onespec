@@ -1,8 +1,6 @@
 /**
  * One schema, three enforcement points.
  *
- * The core idea of the project.
- *
  * A field is optional in the UI, required in the API, and NOT NULL in the
  * database. The user gets a 500 on submit. Nobody wrote this bug deliberately;
  * three people wrote three definitions at three different times, and nothing

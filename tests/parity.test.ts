@@ -67,7 +67,7 @@ describe('three-way parity', () => {
   const sql = makeSqlValidator(KYC);
   const N = 10_000;
 
-  test(`THE HEADLINE: ${N} adversarial inputs, all three targets agree`, () => {
+  test(`${N} adversarial inputs: all three targets agree`, () => {
     const rnd = mulberry32(20260911);
     let accepted = 0;
     let rejected = 0;
@@ -121,7 +121,7 @@ describe('the conditional rule the UI always forgets', () => {
     }
   });
 
-  test('a US applicant without a tax id is rejected by ALL THREE', () => {
+  test('a US applicant without a tax id is rejected by all three targets', () => {
     const row = { ...base, country: 'US' };
     assert.equal(client(row).valid, false);
     assert.equal(validateOnServer(KYC, row).valid, false);
@@ -169,7 +169,7 @@ describe('the cross-field comparison', () => {
 });
 
 describe('drift detection', () => {
-  test('THE MUTATION TEST: breaking a generated target is caught', () => {
+  test('a deliberately broken generated target is caught by the parity check', () => {
     // Hand-edit the schema as a careless change would, regenerate only ONE
     // target, and confirm the parity check notices. Without this, the parity
     // suite could be testing a generator against itself.
