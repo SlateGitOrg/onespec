@@ -1,122 +1,120 @@
 # onespec
 
-> One JSON Schema generating client, server and database validation - with property-based tests proving all three agree.
+One schema, three enforcement points: a compiled client validator, an interpreted server validator and SQL `CHECK` constraints, all generated from the same spec and proven to agree by a property-based parity suite.
 
-`COMPACT` · **Full Stack Engineering** · Intermediate · ~4-5 days · Fintech onboarding
+[![ci](https://github.com/SlateGitOrg/onespec/actions/workflows/ci.yml/badge.svg)](https://github.com/SlateGitOrg/onespec/actions/workflows/ci.yml)
 
-**Primary language:** TypeScript
-**Tags:** `json-schema`, `codegen`, `property-testing`, `postgres`, `validation`
+## Why
 
----
+A field is optional in the UI, required in the API and `NOT NULL` in the database, and users get a cryptic 500 on submit. The three definitions were written separately, at different times, and nothing in the build could notice they disagreed. onespec generates all three from a single spec and then tests, with thousands of adversarial inputs, that they accept and reject exactly the same rows.
 
-## The problem
+## Features
 
-A field is optional in the UI, required in the API, and NOT NULL in the database. Users hit a cryptic 500 on submit. The bug reaches production because the three definitions were written by three people at three different times, and nothing in the build could have noticed they disagreed.
+- A small declarative spec: typed fields (`string`, `integer`, `number`, `boolean`) with `required`, `minLength`/`maxLength`, `minimum`/`maximum`, `pattern` and `enum`.
+- Cross-field rules that survive all three targets: `requiredIf` (field required when another equals a value) and `lessThanOrEqual`.
+- Three independent implementations of the same semantics, so agreement is evidence rather than tautology.
+- SQL generation as a `STRICT` table with a single `CHECK`, run for real against SQLite (`node:sqlite`).
+- A seeded adversarial row generator and a mutation test showing the parity check detects drift.
+- No dependencies and no build step: TypeScript runs natively through Node type stripping.
 
-## ⭐ The differentiator
+## Architecture
 
-A single JSON Schema generates the client validator, the server validator **and the PostgreSQL check constraints**, with **property-based tests proving parity**: the suite generates random inputs and asserts all three layers agree on accept/reject for every one. A generic project writes the schema once, hand-mirrors it into the other two layers, and then has no mechanism whatsoever for detecting divergence.
-
-This is the sentence to lead with when someone asks you to walk through the
-project. Everything else in this repo exists to make it true and to prove it.
-
-## Data
-
-Self-contained. Fixture schemas model realistic KYC forms - conditional fields, cross-field rules, IBAN and ISO-format constraints - which are exactly the cases where hand-mirrored validators diverge first.
-
-> No paid API key is required to run or demo this project. Where a paid
-> service would add value it is wired as an optional enhancement behind an
-> interface with an offline mock as the default implementation.
-
-## Stack
-
-- TypeScript, JSON Schema + Ajv
-- PostgreSQL (generated check constraints)
-- fast-check for property-based testing
-- Vitest
-
-## Core capabilities
-
-- Schema compiles to TypeScript types, a client validator, a server validator and migration SQL
-- Conditional and cross-field rules that survive all three targets
-- Parity test generator producing adversarial inputs per schema
-- Drift detector failing CI when a hand-edit breaks parity
-- Accessible form renderer driven by the same schema
-
-## Repository layout
-
-```
-src/compile/
-src/targets/
-schemas/
-test/parity/
+```mermaid
+flowchart LR
+  S["Spec (schema.ts)<br/>fields + cross-field rules"] --> C["Client target<br/>compiled closures"]
+  S --> V["Server target<br/>schema interpreter"]
+  S --> D["SQL target<br/>generateDdl()"]
+  D --> Q[("SQLite STRICT table<br/>with CHECK")]
+  C --> P{"Parity tests<br/>accept / reject"}
+  V --> P
+  Q --> P
+  G["Seeded adversarial<br/>row generator"] --> P
 ```
 
-## Build plan
+`src/schema.ts` defines the spec types and the sample KYC onboarding spec. `src/targets.ts` holds the three targets. The client target compiles each field into closures once; the server target walks the spec on every call; the SQL target emits DDL and is exercised by inserting rows into an in-memory SQLite database. The tests in `tests/parity.test.ts` feed the same rows to all three.
 
-1. Pick the hard fixture schema first (conditional + cross-field). Easy schemas hide the whole problem.
-2. Emit all three targets, then write the parity property test.
-3. Add the mutation test that deliberately breaks a generated artefact.
+## Quick start
 
-## Testing strategy
-
-10,000 generated inputs per schema asserting **three-way agreement** on accept/reject. Plus a mutation test: deliberately edit the generated SQL and confirm CI catches the drift - proving the parity check has teeth rather than testing the generator against itself.
-
-Tests assert **correctness**, not merely that the code runs. A green suite on
-this repo is a claim about behaviour under adversarial conditions; treat any
-test that would pass against a deliberately broken implementation as a bug in
-the test.
-
-## Measurable outcome
-
-> 30,000 parity assertions pass on every build, and a deliberately introduced divergence is caught in CI rather than by a user hitting a 500.
-
-State it in these terms — business units, not technical ones — in your CV
-bullet and in the first thirty seconds of describing the project.
-
-## Interview questions this project answers
-
-- **Where should validation live?**
-- **How do you test that two implementations agree without writing the same bug twice?**
-
-## What this deliberately is *not*
-
-- Not a form builder. The generated renderer is a demonstration that the schema is sufficient, not a product.
-
-
-## Run it now
+Prerequisite: Node.js 22.18 or newer (24 recommended), which runs `.ts` files natively and includes `node:sqlite`. There is nothing to install.
 
 ```bash
-npm test        # runs the suite; no install step needed
-npm run demo    # the 60-second artefact
-```
-
-Requires Node 22.6+ (24 recommended). TypeScript runs natively via
-type stripping - there is no build step and no `node_modules`.
-
-## Getting started
-
-```bash
-git clone <your-fork-url> onespec
+git clone https://github.com/SlateGitOrg/onespec.git
 cd onespec
-docker compose up -d postgres
-npm install
-npm run compile               # schema -> types, validators, SQL
-npm run db:migrate
-npm run test:parity           # 30k three-way assertions
+npm test        # 11 tests, including 10,000-row three-way parity
+npm run demo    # the side-by-side table below
 ```
 
-Docker is supported but optional — every path above works on a plain
-Windows/macOS/Linux laptop without a cloud account.
+## Usage
 
-## Definition of done
+```ts
+import { KYC } from './src/schema.ts';
+import { compileClientValidator, validateOnServer, makeSqlValidator } from './src/targets.ts';
 
-- [ ] The differentiator above is implemented, and a test proves it
-- [ ] The measurable outcome is produced by a command anyone can run
-- [ ] `README` explains the one decision a generic version gets wrong
-- [ ] CI runs the full suite on every push and is green on `main`
-- [ ] A recruiter can see the headline artefact in under 60 seconds
+const client = compileClientValidator(KYC);
+const sql = makeSqlValidator(KYC);
 
-## Licence
+const row = { full_name: 'Bob Jones', country: 'US', age: 41 };
+client(row);                 // { valid: false, errors: ['tax_id:requiredIf'] }
+validateOnServer(KYC, row);  // same
+sql(row).valid;              // false
+```
+
+`npm run demo` runs eight rows through all three targets (trimmed output):
+
+```
+  case                            client   server   sql      agree
+  valid GB applicant              accept   accept   accept   yes
+  US applicant, no tax id         reject   reject   reject   yes
+  US applicant, tax id given      accept   accept   accept   yes
+  age 17                          reject   reject   reject   yes
+  malformed IBAN                  reject   reject   reject   yes
+  income_low > income_high        reject   reject   reject   yes
+  name sent as a number           reject   reject   reject   yes
+  opt_in sent as 1, not true      reject   reject   reject   yes
+
+  8/8 agree.
+```
+
+## How it works
+
+- **Different mechanisms on purpose.** If all three targets were one function called three times, agreement would prove nothing. The client is compiled closures, the server is an interpreter and the SQL target is evaluated by a database engine.
+- **Type errors short-circuit.** A value of the wrong type is reported as `field:type` and not range-checked, in both JavaScript targets, so their error sets match exactly.
+- **Absent means absent.** `undefined`, `null` and the empty string are all treated as missing; constraint checks are skipped for them and `required`/`requiredIf` fail.
+- **SQLite typing traps.** Columns are declared `ANY` inside a `STRICT` table and the real type is enforced with generated `typeof()` checks. A plain `TEXT` column would silently coerce `42` to `'42'` before the `CHECK` runs. Booleans are stored as the text `'true'`/`'false'` so they stay distinct from `1`/`0`, and integer checks test the value rather than the storage class because JavaScript numbers bind as `REAL`.
+- **Patterns reach the database.** SQLite has no built-in `REGEXP`, so one is registered; dropping pattern constraints from SQL is the classic way a malformed IBAN gets in through a bulk import.
+- **Error detail.** The database only reports that a constraint failed, so all three targets are compared on the accept/reject decision, and the two JavaScript targets are additionally compared on the exact error set.
+
+## Testing
+
+```bash
+npm test
+```
+
+`tests/parity.test.ts` covers:
+
+- 10,000 seeded rows, each a valid baseline with 0 to 3 adversarial mutations (boundary lengths, non-integers, wrong types, empty strings), asserting identical accept/reject across all three targets and that both outcomes are well represented.
+- 2,000 rows asserting the client and server produce identical error sets.
+- The `requiredIf` rule (including an empty-string tax id) and the `lessThanOrEqual` rule.
+- A mutation test: changing a constraint in only one target is detected as a disagreement.
+- A check that the generated DDL contains the expected constraints.
+
+## Project layout
+
+```
+src/schema.ts            spec types and the sample KYC spec
+src/targets.ts           client, server and SQL targets
+src/demo.ts              side-by-side demo
+tests/parity.test.ts     parity, rule and drift tests
+docs/ARCHITECTURE.md     design notes
+.github/workflows/ci.yml CI (Node 24, node --test)
+```
+
+## Limitations
+
+- The SQL target is SQLite, used as the executable stand-in for a real database. The generated constraints use portable constructs, but PostgreSQL DDL is not emitted.
+- The spec is a deliberately small JSON-Schema-like subset, not full JSON Schema; there is no nesting, arrays or `oneOf`.
+- No form renderer or migration tooling is included.
+
+## License
 
 MIT — see [LICENSE](LICENSE).
